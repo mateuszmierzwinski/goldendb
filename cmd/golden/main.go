@@ -6,6 +6,8 @@ import (
 	"log"
 )
 
+const defaultBindAddr = "0.0.0.0:8091"
+
 func main() {
 	fmt.Println("GoldenDB is booting")
 
@@ -15,8 +17,8 @@ func main() {
 		MaxWorkers: 200,               // default limit
 	}
 
-	log.Println("Binding with TCP addr 0.0.0.0:8091 and waiting for connections")
-	if err := g.Bind("0.0.0.0:8091"); err != nil {
+	log.Printf("Binding with TCP addr %s and waiting for connections", defaultBindAddr)
+	if err := g.Bind(defaultBindAddr); err != nil {
 		log.Fatal(err.Error())
 	}
 }

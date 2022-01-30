@@ -1,13 +1,17 @@
 package goldendb
 
-import "fmt"
+import (
+	"fmt"
+	"sync"
+)
 
 type GoldenDB struct {
 	objLimit uint64
 	memLimit uint64
 	objCount uint64
 
-	opStorage chan map[string][]byte
+	storage    map[string][]byte
+	storageMtx sync.Mutex
 }
 
 func (d *GoldenDB) ObjectLimit() uint64 {
@@ -26,38 +30,40 @@ func (d *GoldenDB) InitDB(objLimit uint64, memLimit uint64) {
 	d.objCount = 0
 	d.objLimit = objLimit
 	d.memLimit = memLimit
-	
-	d.opStorage = make(chan map[string][]byte, 1)
+
+	d.storage = make(map[string][]byte)
 }
 
 func (d *GoldenDB) RemakeKey(key []byte) {
-	m := <-d.opStorage
-	m[string(key)] = []byte{}
+	d.storageMtx.Lock()
+	defer d.storageMtx.Unlock()
+
+	d.storage[string(key)] = []byte{}
 	d.objCount++
-	d.opStorage <- m
 }
 
 func (d *GoldenDB) Write(key []byte, bytes []byte) {
-	m := <-d.opStorage
-	obj := append(m[string(key)], bytes...)
-	m[string(key)] = obj
-	d.opStorage <- m
+	d.storageMtx.Lock()
+	defer d.storageMtx.Unlock()
+	obj := append(d.storage[string(key)], bytes...)
+	d.storage[string(key)] = obj
 }
 
 func (d *GoldenDB) GetObject(key []byte) ([]byte, error) {
-	m := <-d.opStorage
-	if v, ok := m[string(key)]; ok {
-		d.opStorage <- m
+	d.storageMtx.Lock()
+	defer d.storageMtx.Unlock()
+
+	if v, ok := d.storage[string(key)]; ok {
 		return v, nil
 	} else {
-		d.opStorage <- m
 		return []byte{}, fmt.Errorf("object not found")
 	}
 }
 
 func (d *GoldenDB) Delete(key []byte) {
-	m := <-d.opStorage
-	m[string(key)] = nil
-	d.opStorage <- m
+	d.storageMtx.Lock()
+	defer d.storageMtx.Unlock()
+
+	d.storage[string(key)] = nil
 	d.objCount--
 }

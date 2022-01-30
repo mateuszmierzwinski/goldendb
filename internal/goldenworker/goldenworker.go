@@ -42,8 +42,7 @@ func (w *GoldenWorker) DispatchAndServe(conn net.Conn, workers chan *GoldenWorke
 }
 
 func (w *GoldenWorker) cmdPong(conn net.Conn) {
-	conn.Write(intToBytes(len(pongResponse)))
-	conn.Write([]byte(pongResponse))
+	protocolStatusWrite(conn, statusOK, []byte(pongResponse))
 }
 
 func (w *GoldenWorker) cmdCreate(conn net.Conn) {
@@ -82,6 +81,7 @@ func (w *GoldenWorker) cmdCreate(conn net.Conn) {
 		protocolStatusWrite(conn, statusNotFit, []byte(msg))
 		return
 	}
+	log.Printf("Incomming label %s with size of %d bytes", string(key), objSize)
 
 	if w.goldenDB.ObjectLimit() <= w.goldenDB.ObjectsCount() {
 		msg := fmt.Sprintf("No space left")
@@ -96,12 +96,14 @@ func (w *GoldenWorker) cmdCreate(conn net.Conn) {
 	w.goldenDB.RemakeKey(key)
 
 	valBuff := make([]byte, defaultBuffSize)
+	copied := 0
 	for {
-		if sz, e := conn.Read(valBuff); e != nil {
-			w.goldenDB.Write(key, valBuff[:sz])
+		sz, e := conn.Read(valBuff)
+		copied = copied + sz
+		w.goldenDB.Write(key, valBuff[:sz])
+		if int64(copied) >= objSize || e != nil {
 			break
 		}
-		w.goldenDB.Write(key, valBuff)
 	}
 
 	msg := fmt.Sprintf("object stored (%d bytes)", uint64(objSize))

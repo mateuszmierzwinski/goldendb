@@ -25,9 +25,10 @@ func (g *Golden) Bind(addr string) (err error) {
 
 	g.Addr = addr
 
-	g.loadWorkers()
 	g.goldenDB = &goldendb.GoldenDB{}
 	g.goldenDB.InitDB(g.ObjLimit, g.MemLimit)
+
+	g.loadWorkers()
 
 	if listener, err = net.Listen("tcp", addr); err != nil {
 		return
